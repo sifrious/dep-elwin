@@ -2,29 +2,41 @@
 
 namespace Sifrious\Elwin;
 
-use InvalidArgumentException;
+use JsonSerializable;
+use Sifrious\ReferenceContract\CrossPackageReference;
 
-final readonly class Reference
+/** @deprecated Prefer CrossPackageReference directly. This adapter preserves Elwin's constructor API and the shared v1 wire format. */
+final readonly class Reference implements JsonSerializable
 {
     public function __construct(
         public string $owner,
         public string $type,
         public string $identifier,
         public ?string $version = null,
+        public ?CrossPackageReference $provenance = null,
     ) {
-        foreach (['owner' => $owner, 'type' => $type, 'identifier' => $identifier] as $field => $value) {
-            if (trim($value) === '' || preg_match('/\s/', $value)) {
-                throw new InvalidArgumentException("Reference {$field} must be a non-empty token.");
-            }
-        }
-
-        if ($version !== null && trim($version) === '') {
-            throw new InvalidArgumentException('Reference version cannot be empty.');
-        }
+        new CrossPackageReference($owner, $type, $identifier, $version, $provenance);
     }
 
     public function equals(self $other): bool
     {
-        return $this == $other;
+        return $this->toPortable()->equals($other->toPortable());
+    }
+
+    public function toPortable(): CrossPackageReference
+    {
+        return new CrossPackageReference($this->owner, $this->type, $this->identifier, $this->version, $this->provenance);
+    }
+
+    /** @return array<string, mixed> */
+    public function toArray(): array
+    {
+        return $this->toPortable()->toArray();
+    }
+
+    /** @return array<string, mixed> */
+    public function jsonSerialize(): array
+    {
+        return $this->toArray();
     }
 }
