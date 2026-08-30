@@ -7,3 +7,8 @@ Elwin owns the provider-neutral boundary between exact human input and evolving 
 `Twinkle` is a durable pre-commitment possibility, presented by Burdgeon as an Idea. Elwin owns its current lifecycle and its references to Quain-owned concepts; promotion retains a reference to Titan-owned work rather than changing the Twinkle into a plan.
 
 Run `composer install && composer test` to verify the contracts.
+
+## License
+
+Copyright © 2026 Sifrious. All rights reserved. This is publicly viewable
+proprietary software, not open-source software. See [LICENSE.md](LICENSE.md).
