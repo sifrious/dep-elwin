@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "5497e4d4c74229491d7609c458a66ae2",
+    "content-hash": "067be7549cf912077f9343f98e5c083b",
     "packages": [
         {
             "name": "quain/core",
@@ -51,8 +51,48 @@
             "time": "2026-09-01T21:46:16+00:00"
         },
         {
-            "name": "sifrious/reference-contract",
+            "name": "sifrious/authorization-contract",
             "version": "dev-main",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/sifrious/dep-authorization-contract.git",
+                "reference": "fc79e39723637f52730a1394b57797f57ee2a49b"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/sifrious/dep-authorization-contract/zipball/fc79e39723637f52730a1394b57797f57ee2a49b",
+                "reference": "fc79e39723637f52730a1394b57797f57ee2a49b",
+                "shasum": ""
+            },
+            "require": {
+                "php": "^8.3",
+                "sifrious/reference-contract": "^1.0"
+            },
+            "default-branch": true,
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Sifrious\\AuthorizationContract\\": "src/"
+                }
+            },
+            "scripts": {
+                "test": [
+                    "php tests/run.php"
+                ]
+            },
+            "license": [
+                "proprietary"
+            ],
+            "description": "Framework-neutral actor, tenant, and authorization decision contracts.",
+            "support": {
+                "source": "https://github.com/sifrious/dep-authorization-contract/tree/main",
+                "issues": "https://github.com/sifrious/dep-authorization-contract/issues"
+            },
+            "time": "2026-09-02T02:28:26+00:00"
+        },
+        {
+            "name": "sifrious/reference-contract",
+            "version": "v1.0.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/sifrious/dep-reference-contract.git",
@@ -67,7 +107,6 @@
             "require": {
                 "php": "^8.3"
             },
-            "default-branch": true,
             "type": "library",
             "autoload": {
                 "psr-4": {
@@ -2125,7 +2164,7 @@
     "minimum-stability": "dev",
     "stability-flags": {
         "quain/core": 20,
-        "sifrious/reference-contract": 20
+        "sifrious/authorization-contract": 20
     },
     "prefer-stable": true,
     "prefer-lowest": false,
