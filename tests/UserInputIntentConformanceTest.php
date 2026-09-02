@@ -18,6 +18,19 @@ use Sifrious\Elwin\UserInputDraft;
 
 final class UserInputIntentConformanceTest extends TestCase
 {
+    public function test_draft_can_change_or_be_discarded_without_becoming_accepted_input(): void
+    {
+        $store = new InMemoryUserInputStore();
+        $draft = new UserInputDraft('submission:draft', 'user:1', 'user:1', new NamedInputChannel('burdgen'), 'First wording.');
+        $draft->exactText = 'Revised before Send.';
+
+        self::assertNull($store->findBySubmission($draft->channel, $draft->submittingActorReference, $draft->clientSubmissionId));
+        self::assertSame('Revised before Send.', $draft->exactText);
+
+        unset($draft);
+        self::assertNull($store->findBySubmission(new NamedInputChannel('burdgen'), 'user:1', 'submission:draft'));
+    }
+
     public function test_send_accepts_one_ordered_immutable_input_and_replay_is_idempotent(): void
     {
         $store = new InMemoryUserInputStore();
@@ -45,6 +58,19 @@ final class UserInputIntentConformanceTest extends TestCase
         self::assertInstanceOf(StringInputPart::class, $first->parts[0]);
         self::assertInstanceOf(AttachmentInputPart::class, $first->parts[1]);
         self::assertSame($draft->exactText, $first->stringInputParts()[0]->exactText);
+    }
+
+    public function test_accepted_send_is_recovered_by_a_new_sender_using_the_same_store_boundary(): void
+    {
+        $store = new InMemoryUserInputStore();
+        $draft = new UserInputDraft('submission:recover', 'user:1', 'user:1', new NamedInputChannel('burdgen'), 'Keep this after disconnect.');
+        $accepted = (new SendPrimaryAskInput($store))->send($draft, 'input:recover', '2026-09-02T12:00:00Z');
+
+        $afterDisconnect = new SendPrimaryAskInput($store);
+        $recovered = $afterDisconnect->send($draft, 'input:retry', '2026-09-02T12:01:00Z');
+
+        self::assertSame($accepted, $recovered);
+        self::assertSame('input:recover', $recovered->id);
     }
 
     public function test_primary_ask_requires_a_human_authored_string(): void
