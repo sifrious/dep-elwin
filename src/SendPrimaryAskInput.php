@@ -27,12 +27,10 @@ final readonly class SendPrimaryAskInput
         $input = new PrimaryAskUserInput(
             $inputId,
             $draft->clientSubmissionId,
-            $draft->semanticAuthor,
-            $draft->submittingActorReference,
+            $draft->authorization,
             $draft->channel,
             $parts,
             $acceptedAt,
-            $draft->delegationAttestation,
         );
         $accepted = $this->store->findOrCreate($input);
         if (! $accepted instanceof PrimaryAskUserInput) {

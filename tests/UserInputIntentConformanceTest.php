@@ -5,9 +5,12 @@ namespace Sifrious\Elwin\Tests;
 use InvalidArgumentException;
 use LogicException;
 use PHPUnit\Framework\TestCase;
+use Sifrious\AuthorizationContract\ActorContext;
+use Sifrious\AuthorizationContract\ActorKind;
+use Sifrious\AuthorizationContract\AuthorizationContext;
+use Sifrious\AuthorizationContract\TenantScope;
 use Sifrious\Elwin\AttachmentInputPart;
 use Sifrious\Elwin\InferredIntent;
-use Sifrious\Elwin\HumanActorReference;
 use Sifrious\Elwin\InputChannel;
 use Sifrious\Elwin\InMemoryUserInputStore;
 use Sifrious\Elwin\IntentOrigin;
@@ -19,21 +22,22 @@ use Sifrious\Elwin\StringInputPart;
 use Sifrious\Elwin\UserEditedIntent;
 use Sifrious\Elwin\UserInputDraft;
 use Sifrious\Elwin\UserInputPart;
+use Sifrious\ReferenceContract\CrossPackageReference;
 
 final class UserInputIntentConformanceTest extends TestCase
 {
     public function test_draft_can_change_or_be_discarded_without_becoming_accepted_input(): void
     {
         $store = new InMemoryUserInputStore();
-        $draft = new UserInputDraft('submission:draft', new HumanActorReference('user:1'), 'user:1', new NamedInputChannel('burdgen'), 'First wording.');
+        $draft = new UserInputDraft('submission:draft', $this->authorization(), new NamedInputChannel('burdgen'), 'First wording.');
         $draft->replaceText('Revised before Send.');
 
-        self::assertNull($store->findBySubmission($draft->channel, $draft->submittingActorReference, $draft->clientSubmissionId));
+        self::assertNull($store->findBySubmission($draft->channel, $draft->authorization->actor->actor, $draft->clientSubmissionId));
         self::assertSame('Revised before Send.', $draft->exactText);
 
         $draft->discard();
         self::assertTrue($draft->isDiscarded());
-        self::assertNull($store->findBySubmission(new NamedInputChannel('burdgen'), 'user:1', 'submission:draft'));
+        self::assertNull($store->findBySubmission(new NamedInputChannel('burdgen'), $this->authorization()->actor->actor, 'submission:draft'));
 
         $this->expectException(LogicException::class);
         (new SendPrimaryAskInput($store))->send($draft, 'input:draft', '2026-09-02T12:00:00Z');
@@ -45,23 +49,21 @@ final class UserInputIntentConformanceTest extends TestCase
         $send = new SendPrimaryAskInput($store);
         $draft = new UserInputDraft(
             'submission:1',
-            new HumanActorReference('human:author'),
-            'service:mcp',
+            $this->authorization(delegated: true),
             new NamedInputChannel('mcp:codex'),
             "  Keep my spacing.\r\nDo not normalize café or 👩🏽‍💻.  \n",
             [new AttachmentInputPart('part:file', 0, 'artifact:file-1', hash('sha256', 'file bytes'))],
-            'delegation:authorized-human-authorship',
         );
 
-        self::assertNull($store->findBySubmission($draft->channel, $draft->submittingActorReference, $draft->clientSubmissionId));
+        self::assertNull($store->findBySubmission($draft->channel, $draft->authorization->actor->actor, $draft->clientSubmissionId));
         $first = $send->send($draft, 'input:1', '2026-09-02T12:00:00Z');
         $replayed = $send->send($draft, 'input:different-retry-id', '2026-09-02T12:00:01Z');
 
         self::assertSame($first, $replayed);
         self::assertSame('input:1', $replayed->id);
-        self::assertSame('human:author', $first->semanticAuthor->identity());
-        self::assertSame('service:mcp', $first->submittingActorReference);
-        self::assertSame('delegation:authorized-human-authorship', $first->delegationAttestation);
+        self::assertSame('human-author', $first->semanticAuthorReference()->id);
+        self::assertSame('mcp', $first->submittingActorReference()->id);
+        self::assertSame('delegation-01', $first->authorization->actor->provenance?->id);
         self::assertCount(2, $first->parts);
         self::assertInstanceOf(StringInputPart::class, $first->parts[0]);
         self::assertInstanceOf(AttachmentInputPart::class, $first->parts[1]);
@@ -71,7 +73,7 @@ final class UserInputIntentConformanceTest extends TestCase
     public function test_accepted_send_is_recovered_by_a_new_sender_using_the_same_store_boundary(): void
     {
         $store = new InMemoryUserInputStore();
-        $draft = new UserInputDraft('submission:recover', new HumanActorReference('user:1'), 'user:1', new NamedInputChannel('burdgen'), 'Keep this after disconnect.');
+        $draft = new UserInputDraft('submission:recover', $this->authorization(), new NamedInputChannel('burdgen'), 'Keep this after disconnect.');
         $accepted = (new SendPrimaryAskInput($store))->send($draft, 'input:recover', '2026-09-02T12:00:00Z');
 
         $afterDisconnect = new SendPrimaryAskInput($store);
@@ -87,8 +89,7 @@ final class UserInputIntentConformanceTest extends TestCase
         new PrimaryAskUserInput(
             'input:1',
             'submission:1',
-            new HumanActorReference('user:1'),
-            'user:1',
+            $this->authorization(),
             new NamedInputChannel('burdgen'),
             [new AttachmentInputPart('part:file', 0, 'artifact:file-1', hash('sha256', 'file bytes'))],
             '2026-09-02T12:00:00Z',
@@ -100,8 +101,7 @@ final class UserInputIntentConformanceTest extends TestCase
         $input = new PrimaryAskUserInput(
             'input:source',
             'submission:source',
-            new HumanActorReference('user:1'),
-            'user:1',
+            $this->authorization(),
             new NamedInputChannel('burdgen'),
             [new StringInputPart('part:text', 0, 'Help me understand this first.')],
             '2026-09-02T12:00:00Z',
@@ -130,21 +130,21 @@ final class UserInputIntentConformanceTest extends TestCase
     public function test_submission_keys_do_not_collide_when_values_contain_delimiters(): void
     {
         $store = new InMemoryUserInputStore();
-        $first = new PrimaryAskUserInput('input:1', 'c', new HumanActorReference('human:1'), 'b', new NamedInputChannel('a'), [new StringInputPart('part:1', 0, 'First')], '2026-09-02T12:00:00Z', 'delegation:1');
-        $second = new PrimaryAskUserInput('input:2', 'c', new HumanActorReference('human:2'), 'a|b', new NamedInputChannel('a'), [new StringInputPart('part:2', 0, 'Second')], '2026-09-02T12:00:00Z', 'delegation:2');
+        $first = new PrimaryAskUserInput('input:1', 'c', $this->authorization('b'), new NamedInputChannel('a'), [new StringInputPart('part:1', 0, 'First')], '2026-09-02T12:00:00Z');
+        $second = new PrimaryAskUserInput('input:2', 'c', $this->authorization('a|b'), new NamedInputChannel('a'), [new StringInputPart('part:2', 0, 'Second')], '2026-09-02T12:00:00Z');
 
         $store->save($first);
         $store->save($second);
 
-        self::assertSame($first, $store->findBySubmission(new NamedInputChannel('a'), 'b', 'c'));
-        self::assertSame($second, $store->findBySubmission(new NamedInputChannel('a'), 'a|b', 'c'));
+        self::assertSame($first, $store->findBySubmission(new NamedInputChannel('a'), $first->submittingActorReference(), 'c'));
+        self::assertSame($second, $store->findBySubmission(new NamedInputChannel('a'), $second->submittingActorReference(), 'c'));
     }
 
     public function test_submission_identity_cannot_overwrite_different_evidence(): void
     {
         $store = new InMemoryUserInputStore();
-        $first = new PrimaryAskUserInput('input:1', 'submission:1', new HumanActorReference('user:1'), 'user:1', new NamedInputChannel('burdgen'), [new StringInputPart('part:1', 0, 'Original')], '2026-09-02T12:00:00Z');
-        $changed = new PrimaryAskUserInput('input:1', 'submission:1', new HumanActorReference('user:1'), 'user:1', new NamedInputChannel('burdgen'), [new StringInputPart('part:1', 0, 'Changed')], '2026-09-02T12:00:01Z');
+        $first = new PrimaryAskUserInput('input:1', 'submission:1', $this->authorization(), new NamedInputChannel('burdgen'), [new StringInputPart('part:1', 0, 'Original')], '2026-09-02T12:00:00Z');
+        $changed = new PrimaryAskUserInput('input:1', 'submission:1', $this->authorization(), new NamedInputChannel('burdgen'), [new StringInputPart('part:1', 0, 'Changed')], '2026-09-02T12:00:01Z');
         $store->save($first);
 
         $this->expectException(LogicException::class);
@@ -158,7 +158,7 @@ final class UserInputIntentConformanceTest extends TestCase
             public function identity(): string { return $this->value; }
         };
         $part = new StringInputPart('part:1', 0, 'Original');
-        $input = new PrimaryAskUserInput('input:1', 'submission:1', new HumanActorReference('user:1'), 'user:1', $channel, [$part], '2026-09-02T12:00:00Z');
+        $input = new PrimaryAskUserInput('input:1', 'submission:1', $this->authorization(), $channel, [$part], '2026-09-02T12:00:00Z');
         $channel->value = 'changed';
 
         self::assertSame('burdgen', $input->channel->identity());
@@ -176,19 +176,19 @@ final class UserInputIntentConformanceTest extends TestCase
         };
 
         $this->expectException(InvalidArgumentException::class);
-        new PrimaryAskUserInput('input:1', 'submission:1', new HumanActorReference('user:1'), 'user:1', new NamedInputChannel('burdgen'), [$part], '2026-09-02T12:00:00Z');
+        new PrimaryAskUserInput('input:1', 'submission:1', $this->authorization(), new NamedInputChannel('burdgen'), [$part], '2026-09-02T12:00:00Z');
     }
 
     public function test_sparse_parts_cannot_be_accepted(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        new PrimaryAskUserInput('input:1', 'submission:1', new HumanActorReference('user:1'), 'user:1', new NamedInputChannel('burdgen'), [1 => new StringInputPart('part:1', 1, 'Text')], '2026-09-02T12:00:00Z');
+        new PrimaryAskUserInput('input:1', 'submission:1', $this->authorization(), new NamedInputChannel('burdgen'), [1 => new StringInputPart('part:1', 1, 'Text')], '2026-09-02T12:00:00Z');
     }
 
     public function test_impossible_acceptance_timestamp_cannot_be_accepted(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        new PrimaryAskUserInput('input:1', 'submission:1', new HumanActorReference('user:1'), 'user:1', new NamedInputChannel('burdgen'), [new StringInputPart('part:1', 0, 'Text')], '2026-99-99T99:99:99Z');
+        new PrimaryAskUserInput('input:1', 'submission:1', $this->authorization(), new NamedInputChannel('burdgen'), [new StringInputPart('part:1', 0, 'Text')], '2026-99-99T99:99:99Z');
     }
 
     public function test_constraints_must_be_a_list(): void
@@ -206,5 +206,15 @@ final class UserInputIntentConformanceTest extends TestCase
 
         $this->expectException(InvalidArgumentException::class);
         $superseded->supersededBy($third);
+    }
+
+    private function authorization(string $actorId = 'human-author', bool $delegated = false): AuthorizationContext
+    {
+        $human = new CrossPackageReference('sifrious/zahir', 'account', 'human-author');
+        $actor = $delegated
+            ? new ActorContext(new CrossPackageReference('sifrious/zahir', 'service', 'mcp'), ActorKind::Service, actingFor: $human, provenance: new CrossPackageReference('sifrious/zahir', 'delegation', 'delegation-01'))
+            : new ActorContext(new CrossPackageReference('sifrious/zahir', 'account', $actorId), ActorKind::Human);
+
+        return new AuthorizationContext($actor, TenantScope::forTenant('organization', new CrossPackageReference('sifrious/zahir', 'organization', 'tenant-a')));
     }
 }
