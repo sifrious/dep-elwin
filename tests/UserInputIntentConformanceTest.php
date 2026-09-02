@@ -1,50 +1,104 @@
 <?php
 declare(strict_types=1);
 namespace Sifrious\Elwin\Tests;
+
+use InvalidArgumentException;
 use PHPUnit\Framework\TestCase;
-use Sifrious\Elwin\Intent;
+use Sifrious\Elwin\AttachmentInputPart;
+use Sifrious\Elwin\InferredIntent;
+use Sifrious\Elwin\InMemoryUserInputStore;
+use Sifrious\Elwin\IntentOrigin;
 use Sifrious\Elwin\IntentStatus;
-use Sifrious\Elwin\UserInput;
+use Sifrious\Elwin\NamedInputChannel;
+use Sifrious\Elwin\PrimaryAskUserInput;
+use Sifrious\Elwin\SendPrimaryAskInput;
+use Sifrious\Elwin\StringInputPart;
+use Sifrious\Elwin\UserEditedIntent;
+use Sifrious\Elwin\UserInputDraft;
+
 final class UserInputIntentConformanceTest extends TestCase
 {
-    public function test_exact_source_bytes_remain_unchanged_across_interpretation_versions(): void
+    public function test_send_accepts_one_ordered_immutable_input_and_replay_is_idempotent(): void
     {
-        $exactSource = "  Keep my spacing.\r\nDo not normalize café or 👩🏽‍💻.  \n";
-        $input = new UserInput('input:exact-source', 'user:1', $exactSource, [], 'burdgeon', '2026-08-29T12:00:00.123Z');
-        $first = new Intent('intent:1:v1', $input->id, 'Initial interpretation.', ['Preserve source evidence.'], 'Scope is unresolved.', 1);
-        $second = new Intent('intent:1:v2', $input->id, 'Revised interpretation.', ['Preserve source evidence.'], null, 2, IntentStatus::Active);
-        $preservedFirst = $first->supersededBy($second->id);
+        $store = new InMemoryUserInputStore();
+        $send = new SendPrimaryAskInput($store);
+        $draft = new UserInputDraft(
+            'submission:1',
+            'human:author',
+            'service:mcp',
+            new NamedInputChannel('mcp:codex'),
+            "  Keep my spacing.\r\nDo not normalize café or 👩🏽‍💻.  \n",
+            [new AttachmentInputPart('part:file', 0, 'artifact:file-1', hash('sha256', 'file bytes'))],
+            'delegation:authorized-human-authorship',
+        );
 
-        self::assertSame($exactSource, $input->exactText);
-        self::assertSame($input->id, $preservedFirst->sourceInputId);
-        self::assertSame($input->id, $second->sourceInputId);
-        self::assertSame(1, $preservedFirst->interpretationVersion);
-        self::assertSame(IntentStatus::Superseded, $preservedFirst->status);
-        self::assertSame($second->id, $preservedFirst->replacementIntentId);
-        self::assertSame('Initial interpretation.', $preservedFirst->summary);
-        self::assertSame(2, $second->interpretationVersion);
+        self::assertNull($store->findBySubmission($draft->channel, $draft->submittingActorReference, $draft->clientSubmissionId));
+        $first = $send->send($draft, 'input:1', '2026-09-02T12:00:00Z');
+        $replayed = $send->send($draft, 'input:different-retry-id', '2026-09-02T12:00:01Z');
+
+        self::assertSame($first, $replayed);
+        self::assertSame('input:1', $replayed->id);
+        self::assertSame('human:author', $first->semanticAuthorReference);
+        self::assertSame('service:mcp', $first->submittingActorReference);
+        self::assertSame('delegation:authorized-human-authorship', $first->delegationAttestation);
+        self::assertCount(2, $first->parts);
+        self::assertInstanceOf(StringInputPart::class, $first->parts[0]);
+        self::assertInstanceOf(AttachmentInputPart::class, $first->parts[1]);
+        self::assertSame($draft->exactText, $first->stringInputParts()[0]->exactText);
     }
 
-    public function test_capture_interpret_and_supersede_make_zero_provider_or_execution_calls(): void
+    public function test_primary_ask_requires_a_human_authored_string(): void
     {
-        $calls = new class {
-            public int $provider = 0;
-            public int $execution = 0;
-        };
-
-        $input = new UserInput('input:no-dispatch', 'user:1', 'Help me understand this first.', [], 'burdgeon', '2026-08-29T12:00:00Z');
-        $first = new Intent('intent:no-dispatch:v1', $input->id, 'Clarify the request.', [], 'Target is unknown.', 1);
-        $second = new Intent('intent:no-dispatch:v2', $input->id, 'Discuss possible targets.', [], null, 2);
-        $first = $first->supersededBy($second->id);
-
-        self::assertSame(0, $calls->provider, 'Intent construction must not call a provider.');
-        self::assertSame(0, $calls->execution, 'Intent construction must not dispatch execution.');
-        self::assertSame(IntentStatus::Superseded, $first->status);
+        $this->expectException(InvalidArgumentException::class);
+        new PrimaryAskUserInput(
+            'input:1',
+            'submission:1',
+            'user:1',
+            'user:1',
+            new NamedInputChannel('burdgen'),
+            [new AttachmentInputPart('part:file', 0, 'artifact:file-1', hash('sha256', 'file bytes'))],
+            '2026-09-02T12:00:00Z',
+        );
     }
 
-    public function test_replacement_link_is_valid_only_for_a_distinct_superseded_intent(): void
+    public function test_inferred_intent_is_separate_and_user_edit_supersedes_without_rewriting_input(): void
     {
-        $this->expectException(\InvalidArgumentException::class);
-        new Intent('intent:1:v1', 'input:1', 'Interpretation.', [], null, 1, IntentStatus::Active, 'intent:1:v2');
+        $input = new PrimaryAskUserInput(
+            'input:source',
+            'submission:source',
+            'user:1',
+            'user:1',
+            new NamedInputChannel('burdgen'),
+            [new StringInputPart('part:text', 0, 'Help me understand this first.')],
+            '2026-09-02T12:00:00Z',
+        );
+        $inferred = new InferredIntent('intent:a:v1', 'intent:a', $input->id, 'Clarify the request.', [], 'Target is unknown.', 1, 'model:local/config:v1');
+        $edited = new UserEditedIntent('intent:a:v2', 'intent:a', $input->id, 'Discuss possible targets.', [], null, 2, 'user-input:edit-1');
+        $preserved = $inferred->supersededBy($edited);
+
+        self::assertSame('Help me understand this first.', $input->stringInputParts()[0]->exactText);
+        self::assertSame(IntentOrigin::Inferred, $preserved->origin);
+        self::assertSame(IntentStatus::Superseded, $preserved->status);
+        self::assertSame($edited->id, $preserved->replacementIntentId);
+        self::assertSame(IntentOrigin::UserEdited, $edited->origin);
+        self::assertSame('model:local/config:v1', $preserved->provenance);
+    }
+
+    public function test_one_input_can_start_independent_sibling_intent_families(): void
+    {
+        $first = new InferredIntent('intent:a:v1', 'intent:a', 'input:1', 'Change authentication.', [], null, 1, 'fixture');
+        $second = new InferredIntent('intent:b:v1', 'intent:b', 'input:1', 'Write release notes.', [], null, 1, 'fixture');
+
+        self::assertSame($first->sourceInputId, $second->sourceInputId);
+        self::assertNotSame($first->familyId, $second->familyId);
+    }
+
+    public function test_capture_and_interpretation_make_zero_provider_or_execution_calls(): void
+    {
+        $calls = new class { public int $provider = 0; public int $execution = 0; };
+        new InferredIntent('intent:1:v1', 'intent:1', 'input:1', 'Clarify.', [], null, 1, 'fixture');
+
+        self::assertSame(0, $calls->provider);
+        self::assertSame(0, $calls->execution);
     }
 }
