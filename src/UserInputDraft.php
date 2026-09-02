@@ -2,6 +2,8 @@
 declare(strict_types=1);
 namespace Sifrious\Elwin;
 
+use Sifrious\AuthorizationContract\AuthorizationContext;
+
 /** Mutable editor state. It is not accepted source evidence until Send. */
 final class UserInputDraft
 {
@@ -10,12 +12,10 @@ final class UserInputDraft
     /** @param list<AttachmentInputPart> $attachments */
     public function __construct(
         public string $clientSubmissionId,
-        public HumanActorReference $semanticAuthor,
-        public string $submittingActorReference,
+        public AuthorizationContext $authorization,
         public InputChannel $channel,
         public string $exactText = '',
         public array $attachments = [],
-        public ?string $delegationAttestation = null,
     ) {}
 
     public function replaceText(string $exactText): void

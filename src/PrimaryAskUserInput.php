@@ -3,6 +3,7 @@ declare(strict_types=1);
 namespace Sifrious\Elwin;
 
 use InvalidArgumentException;
+use Sifrious\AuthorizationContract\AuthorizationContext;
 
 final readonly class PrimaryAskUserInput extends UserInput implements HasStringInput, HasAttachmentInput
 {
@@ -10,17 +11,15 @@ final readonly class PrimaryAskUserInput extends UserInput implements HasStringI
     public function __construct(
         string $id,
         string $clientSubmissionId,
-        HumanActorReference $semanticAuthor,
-        string $submittingActorReference,
+        AuthorizationContext $authorization,
         InputChannel $channel,
         array $parts,
         string $acceptedAt,
-        ?string $delegationAttestation = null,
     ) {
         if (array_filter($parts, static fn (mixed $part): bool => $part instanceof StringInputPart) === []) {
             throw new InvalidArgumentException('Primary Ask requires at least one human-authored string part.');
         }
-        parent::__construct($id, $clientSubmissionId, $semanticAuthor, $submittingActorReference, $channel, $parts, $acceptedAt, $delegationAttestation);
+        parent::__construct($id, $clientSubmissionId, $authorization, $channel, $parts, $acceptedAt);
     }
 
     public function stringInputParts(): array
