@@ -10,7 +10,7 @@ final readonly class PrimaryAskUserInput extends UserInput implements HasStringI
     public function __construct(
         string $id,
         string $clientSubmissionId,
-        string $semanticAuthorReference,
+        HumanActorReference $semanticAuthor,
         string $submittingActorReference,
         InputChannel $channel,
         array $parts,
@@ -20,7 +20,7 @@ final readonly class PrimaryAskUserInput extends UserInput implements HasStringI
         if (array_filter($parts, static fn (mixed $part): bool => $part instanceof StringInputPart) === []) {
             throw new InvalidArgumentException('Primary Ask requires at least one human-authored string part.');
         }
-        parent::__construct($id, $clientSubmissionId, $semanticAuthorReference, $submittingActorReference, $channel, $parts, $acceptedAt, $delegationAttestation);
+        parent::__construct($id, $clientSubmissionId, $semanticAuthor, $submittingActorReference, $channel, $parts, $acceptedAt, $delegationAttestation);
     }
 
     public function stringInputParts(): array

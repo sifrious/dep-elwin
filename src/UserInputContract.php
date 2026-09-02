@@ -6,7 +6,7 @@ interface UserInputContract
 {
     public function id(): string;
     public function clientSubmissionId(): string;
-    public function semanticAuthorReference(): string;
+    public function semanticAuthor(): HumanActorReference;
     public function submittingActorReference(): string;
     public function channel(): InputChannel;
     /** @return list<UserInputPart> */

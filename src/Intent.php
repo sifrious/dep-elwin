@@ -23,6 +23,9 @@ abstract readonly class Intent implements IntentContract
         if (trim($id) === '' || trim($familyId) === '' || trim($sourceInputId) === '' || trim($summary) === '' || trim($provenance) === '' || $interpretationVersion < 1) {
             throw new InvalidArgumentException('Intent requires identity, family, source input, summary, provenance, and a positive interpretation version.');
         }
+        if (! array_is_list($constraints)) {
+            throw new InvalidArgumentException('Intent constraints must be a list.');
+        }
         foreach ($constraints as $constraint) {
             if (! is_string($constraint) || trim($constraint) === '') {
                 throw new InvalidArgumentException('Intent constraints must be non-empty strings.');
@@ -45,6 +48,9 @@ abstract readonly class Intent implements IntentContract
      */
     final public function supersededBy(Intent $replacement): Intent
     {
+        if ($this->status === IntentStatus::Superseded) {
+            throw new InvalidArgumentException('A superseded intent cannot be superseded again.');
+        }
         if ($replacement->familyId !== $this->familyId || $replacement->sourceInputId !== $this->sourceInputId || $replacement->interpretationVersion !== $this->interpretationVersion + 1) {
             throw new InvalidArgumentException('A replacement must be the next version in the same intent family and source input.');
         }
