@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "a4b242970d1a78bf38894b4f6e7be08d",
+    "content-hash": "2189974f15e5d375193777b1e4fc7dac",
     "packages": [
         {
             "name": "quain/core",
@@ -49,6 +49,45 @@
                 "issues": "https://github.com/sifrious/quain/issues"
             },
             "time": "2026-09-01T21:46:16+00:00"
+        },
+        {
+            "name": "sifrious/reference-contract",
+            "version": "dev-main",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/sifrious/dep-reference-contract.git",
+                "reference": "13075ffaec9e263392083d4b7e84f7cde8f38622"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/sifrious/dep-reference-contract/zipball/13075ffaec9e263392083d4b7e84f7cde8f38622",
+                "reference": "13075ffaec9e263392083d4b7e84f7cde8f38622",
+                "shasum": ""
+            },
+            "require": {
+                "php": "^8.3"
+            },
+            "default-branch": true,
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Sifrious\\ReferenceContract\\": "src/"
+                }
+            },
+            "scripts": {
+                "test": [
+                    "php tests/run.php"
+                ]
+            },
+            "license": [
+                "proprietary"
+            ],
+            "description": "Framework-neutral cross-package reference values and resolution contracts.",
+            "support": {
+                "source": "https://github.com/sifrious/dep-reference-contract/tree/v1.0.0",
+                "issues": "https://github.com/sifrious/dep-reference-contract/issues"
+            },
+            "time": "2026-08-30T02:13:10+00:00"
         },
         {
             "name": "symfony/deprecation-contracts",
@@ -2044,7 +2083,8 @@
     "aliases": [],
     "minimum-stability": "dev",
     "stability-flags": {
-        "quain/core": 20
+        "quain/core": 20,
+        "sifrious/reference-contract": 20
     },
     "prefer-stable": true,
     "prefer-lowest": false,
