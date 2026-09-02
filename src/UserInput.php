@@ -30,6 +30,9 @@ abstract readonly class UserInput implements UserInputContract
             throw new InvalidArgumentException('A user input requires at least one content part.');
         }
         $snapshots = [];
+        if (! array_is_list($parts)) {
+            throw new InvalidArgumentException('Input parts must be ordered from zero without gaps.');
+        }
         foreach ($parts as $position => $part) {
             if (! $part instanceof UserInputPart || $part->position() !== $position) {
                 throw new InvalidArgumentException('Input parts must be typed and ordered from zero without gaps.');
@@ -40,7 +43,11 @@ abstract readonly class UserInput implements UserInputContract
                 default => throw new InvalidArgumentException('Accepted input parts must be supported immutable value objects.'),
             };
         }
-        if (preg_match('/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$/', $acceptedAt) !== 1) {
+        if (preg_match('/^(\\d{4})-(\\d{2})-(\\d{2})T(\\d{2}):(\\d{2}):(\\d{2})(?:\\.\\d+)?Z$/', $acceptedAt, $timestamp) !== 1
+            || ! checkdate((int) $timestamp[2], (int) $timestamp[3], (int) $timestamp[1])
+            || (int) $timestamp[4] > 23
+            || (int) $timestamp[5] > 59
+            || (int) $timestamp[6] > 59) {
             throw new InvalidArgumentException('Input acceptance time must be UTC ISO-8601.');
         }
         $this->semanticAuthor = new HumanActorReference($semanticAuthor->identity());

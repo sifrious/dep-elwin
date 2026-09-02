@@ -179,6 +179,18 @@ final class UserInputIntentConformanceTest extends TestCase
         new PrimaryAskUserInput('input:1', 'submission:1', new HumanActorReference('user:1'), 'user:1', new NamedInputChannel('burdgen'), [$part], '2026-09-02T12:00:00Z');
     }
 
+    public function test_sparse_parts_cannot_be_accepted(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        new PrimaryAskUserInput('input:1', 'submission:1', new HumanActorReference('user:1'), 'user:1', new NamedInputChannel('burdgen'), [1 => new StringInputPart('part:1', 1, 'Text')], '2026-09-02T12:00:00Z');
+    }
+
+    public function test_impossible_acceptance_timestamp_cannot_be_accepted(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        new PrimaryAskUserInput('input:1', 'submission:1', new HumanActorReference('user:1'), 'user:1', new NamedInputChannel('burdgen'), [new StringInputPart('part:1', 0, 'Text')], '2026-99-99T99:99:99Z');
+    }
+
     public function test_constraints_must_be_a_list(): void
     {
         $this->expectException(InvalidArgumentException::class);
