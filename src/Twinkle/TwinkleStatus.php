@@ -5,6 +5,7 @@ namespace Sifrious\Elwin\Twinkle;
 enum TwinkleStatus: string
 {
     case Active = 'active';
+    case Accepted = 'accepted';
     case Deferred = 'deferred';
     case Dismissed = 'dismissed';
     case Promoted = 'promoted';
@@ -13,7 +14,7 @@ enum TwinkleStatus: string
     public function isTerminal(): bool
     {
         return match ($this) {
-            self::Dismissed, self::Promoted, self::Merged => true,
+            self::Dismissed, self::Merged => true,
             default => false,
         };
     }

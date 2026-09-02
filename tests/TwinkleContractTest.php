@@ -35,11 +35,18 @@ final class TwinkleContractTest extends TestCase
         $this->captured()->dismiss($this->ref('user', 'mary'), new DateTimeImmutable(), 9);
     }
 
-    public function test_promotion_retains_external_work_reference(): void
+    public function test_acceptance_and_multiple_promotions_do_not_terminalize_the_proposal(): void
     {
-        $change = $this->captured()->promote([$this->ref('titan-plan', 'plan-7')], $this->ref('user', 'mary'), new DateTimeImmutable(), 1);
-        self::assertSame(TwinkleStatus::Promoted, $change->twinkle->status);
-        self::assertSame('plan-7', $change->twinkle->promotedWork[0]->identifier);
+        $accepted = $this->captured()->accept($this->ref('user', 'mary'), new DateTimeImmutable(), 1);
+        $first = $accepted->twinkle->promote([$this->ref('titan-plan', 'plan-7')], $this->ref('user', 'mary'), new DateTimeImmutable(), 2);
+        $second = $first->twinkle->promote([$this->ref('linear-issue', 'MME-7')], $this->ref('user', 'mary'), new DateTimeImmutable(), 3);
+        $deferred = $second->twinkle->defer($this->ref('user', 'mary'), new DateTimeImmutable(), 4);
+        $reactivated = $deferred->twinkle->reactivate($this->ref('user', 'mary'), new DateTimeImmutable(), 5);
+
+        self::assertSame(TwinkleStatus::Accepted, $second->twinkle->status);
+        self::assertSame(['plan-7', 'MME-7'], array_map(static fn (Reference $reference): string => $reference->identifier, $second->twinkle->promotedWork));
+        self::assertSame('promotion-recorded', $second->transition->type);
+        self::assertSame(TwinkleStatus::Active, $reactivated->twinkle->status);
     }
 
     public function test_merge_preserves_source_and_rejects_self_merge(): void
