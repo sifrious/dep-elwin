@@ -44,35 +44,41 @@ final readonly class Twinkle
 
     public function defer(Reference $actor, DateTimeImmutable $at, int $expectedVersion, ?string $rationale = null): TwinkleChange
     {
-        $this->assertStatus([TwinkleStatus::Active], $expectedVersion, 'defer');
+        $this->assertStatus([TwinkleStatus::Active, TwinkleStatus::Accepted, TwinkleStatus::Promoted], $expectedVersion, 'defer');
         return $this->change('deferred', $actor, $at, $rationale, status: TwinkleStatus::Deferred);
+    }
+
+    public function accept(Reference $actor, DateTimeImmutable $at, int $expectedVersion, ?string $rationale = null): TwinkleChange
+    {
+        $this->assertStatus([TwinkleStatus::Active, TwinkleStatus::Deferred, TwinkleStatus::Promoted], $expectedVersion, 'accept');
+        return $this->change('accepted', $actor, $at, $rationale, status: TwinkleStatus::Accepted);
     }
 
     public function reactivate(Reference $actor, DateTimeImmutable $at, int $expectedVersion, ?string $rationale = null): TwinkleChange
     {
-        $this->assertStatus([TwinkleStatus::Deferred], $expectedVersion, 'reactivate');
+        $this->assertStatus([TwinkleStatus::Deferred, TwinkleStatus::Promoted], $expectedVersion, 'reactivate');
         return $this->change('reactivated', $actor, $at, $rationale, status: TwinkleStatus::Active);
     }
 
     public function dismiss(Reference $actor, DateTimeImmutable $at, int $expectedVersion, ?string $rationale = null): TwinkleChange
     {
-        $this->assertStatus([TwinkleStatus::Active, TwinkleStatus::Deferred], $expectedVersion, 'dismiss');
+        $this->assertStatus([TwinkleStatus::Active, TwinkleStatus::Accepted, TwinkleStatus::Deferred, TwinkleStatus::Promoted], $expectedVersion, 'dismiss');
         return $this->change('dismissed', $actor, $at, $rationale, status: TwinkleStatus::Dismissed);
     }
 
     /** @param list<Reference> $work */
     public function promote(array $work, Reference $actor, DateTimeImmutable $at, int $expectedVersion, ?string $rationale = null): TwinkleChange
     {
-        $this->assertStatus([TwinkleStatus::Active], $expectedVersion, 'promote');
+        $this->assertStatus([TwinkleStatus::Active, TwinkleStatus::Accepted, TwinkleStatus::Deferred, TwinkleStatus::Promoted], $expectedVersion, 'promote');
         if ($work === []) {
             throw new InvalidTwinkleTransition('Promotion requires at least one durable work reference.');
         }
-        return $this->change('promoted', $actor, $at, $rationale, status: TwinkleStatus::Promoted, promotedWork: $work);
+        return $this->change('promotion-recorded', $actor, $at, $rationale, promotedWork: [...$this->promotedWork, ...$work]);
     }
 
     public function mergeInto(TwinkleId $survivor, Reference $actor, DateTimeImmutable $at, int $expectedVersion, ?string $rationale = null): TwinkleChange
     {
-        $this->assertStatus([TwinkleStatus::Active, TwinkleStatus::Deferred], $expectedVersion, 'merge');
+        $this->assertStatus([TwinkleStatus::Active, TwinkleStatus::Accepted, TwinkleStatus::Deferred, TwinkleStatus::Promoted], $expectedVersion, 'merge');
         if ($survivor == $this->id) {
             throw new InvalidTwinkleTransition('A Twinkle cannot merge into itself.');
         }
