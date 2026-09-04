@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "project": "Elwin",
+  "updated_at": "2026-09-04T13:30:00Z",
+  "facts": [
+    {
+      "id": "F-001",
+      "statement": "Elwin owns provider-neutral intent, conversation, intervention, and resumable handoff representation."
+    },
+    {
+      "id": "F-002",
+      "statement": "Logres owns execution-state suspension, handler replay prevention, and resumption."
+    }
+  ],
+  "decisions": [
+    {
+      "id": "D-001",
+      "decision": "A resumable handoff carries a paused-work reference, question and response references, an opaque token, and a consumer-owned checkpoint reference.",
+      "rationale": "Consumers can coordinate a resume without Elwin modeling their execution state."
+    },
+    {
+      "id": "D-002",
+      "decision": "Handoff lifecycle is limited to awaiting response, answered, cancelled, and expired; resuming work is an allowed consumer transition, not an Elwin state.",
+      "rationale": "This keeps the MME-1496 representation boundary separate from MME-1299 execution behavior."
+    },
+    {
+      "id": "D-003",
+      "decision": "Elwin acceptance tests consume the shared request-lifecycle-v1 fixture.",
+      "rationale": "Cross-package identities remain shared without duplicating fixture files or Logres state machines."
+    }
+  ],
+  "constraints": [
+    "Handoff payloads are JSON-portable and contain no provider or UI behavior.",
+    "A resume token does not grant authorization.",
+    "Elwin does not dispatch, suspend, replay, or resume execution."
+  ]
+}
