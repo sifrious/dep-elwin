@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Sifrious\Elwin\Tests;
 
 use DateTimeImmutable;
+use InvalidArgumentException;
 use LogicException;
 use PHPUnit\Framework\TestCase;
 use Sifrious\Elwin\Handoff\HandoffPayload;
@@ -73,6 +74,7 @@ final class ResumableHandoffContractTest extends TestCase
         $executionConsumer->accept($answered, $requestedAt->modify('+6 minutes'));
 
         self::assertSame(HandoffStatus::Answered, $answered->status);
+        self::assertFalse(HandoffQuery::resumable($requestedAt->modify('+4 minutes'), $pausedWork)->matches($answered));
         self::assertTrue(HandoffQuery::resumable($requestedAt->modify('+6 minutes'), $pausedWork)->matches($answered));
         self::assertSame([HandoffTransition::ResumePausedWork, HandoffTransition::Cancel], $answered->allowedTransitions($requestedAt->modify('+6 minutes')));
         self::assertSame(1, $executionConsumer->resumeRequests);
@@ -103,6 +105,24 @@ final class ResumableHandoffContractTest extends TestCase
             $this->ref('sifrious/elwin', 'response', 'response_late'),
             $requestedAt->modify('+1 hour'),
         );
+    }
+
+    public function test_queries_and_transitions_do_not_apply_before_the_handoff_exists(): void
+    {
+        $requestedAt = new DateTimeImmutable('2026-09-04T12:00:00+00:00');
+        $handoff = $this->handoff($requestedAt);
+        $beforeRequest = $requestedAt->modify('-1 second');
+
+        self::assertFalse(HandoffQuery::awaitingResponse($beforeRequest)->matches($handoff));
+        self::assertSame([], $handoff->allowedTransitions($beforeRequest));
+    }
+
+    public function test_payload_rejects_mutable_objects(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        new HandoffPayload('sifrious.elwin.intervention-context/v1', [
+            'mutable' => new \stdClass(),
+        ]);
     }
 
     private function handoff(DateTimeImmutable $requestedAt): ResumableHandoff

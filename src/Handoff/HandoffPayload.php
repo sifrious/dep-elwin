@@ -30,11 +30,31 @@ final readonly class HandoffPayload implements JsonSerializable
         } catch (JsonException $exception) {
             throw new InvalidArgumentException('Handoff payload data must be JSON-portable.', previous: $exception);
         }
+        self::assertJsonValue($data);
     }
 
     /** @return array{schema: string, data: array<string, mixed>} */
     public function jsonSerialize(): array
     {
         return ['schema' => $this->schema, 'data' => $this->data];
+    }
+
+    private static function assertJsonValue(mixed $value): void
+    {
+        if ($value === null || is_string($value) || is_int($value) || is_bool($value)) {
+            return;
+        }
+        if (is_float($value) && is_finite($value)) {
+            return;
+        }
+        if (is_array($value)) {
+            foreach ($value as $item) {
+                self::assertJsonValue($item);
+            }
+
+            return;
+        }
+
+        throw new InvalidArgumentException('Handoff payload data must contain only immutable JSON values.');
     }
 }

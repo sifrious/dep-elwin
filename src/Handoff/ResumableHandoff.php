@@ -42,7 +42,13 @@ final readonly class ResumableHandoff implements JsonSerializable
         if ($expiresAt !== null && $expiresAt <= $requestedAt) {
             throw new InvalidArgumentException('Handoff expiry must be later than its request time.');
         }
-        if ($status === HandoffStatus::AwaitingResponse && ($response !== null || $answeredAt !== null)) {
+        if (($response === null) !== ($answeredAt === null)) {
+            throw new InvalidArgumentException('A handoff response and answer time must be recorded together.');
+        }
+        if ($answeredAt !== null && ($answeredAt < $requestedAt || ($expiresAt !== null && $answeredAt >= $expiresAt))) {
+            throw new InvalidArgumentException('A handoff answer must occur after its request and before expiry.');
+        }
+        if ($status === HandoffStatus::AwaitingResponse && $response !== null) {
             throw new InvalidArgumentException('An awaiting handoff cannot already contain a response.');
         }
         if ($status === HandoffStatus::Answered && ($response === null || $answeredAt === null)) {
@@ -51,8 +57,20 @@ final readonly class ResumableHandoff implements JsonSerializable
         if ($status === HandoffStatus::Cancelled && $cancelledAt === null) {
             throw new InvalidArgumentException('A cancelled handoff requires a cancellation time.');
         }
+        if (($status === HandoffStatus::Cancelled) !== ($cancelledAt !== null)) {
+            throw new InvalidArgumentException('Only a cancelled handoff may have a cancellation time.');
+        }
+        if ($cancelledAt !== null && ($cancelledAt < $requestedAt || ($answeredAt !== null && $cancelledAt < $answeredAt))) {
+            throw new InvalidArgumentException('Cancellation cannot predate the handoff request or answer.');
+        }
         if ($status === HandoffStatus::Expired && $expiredAt === null) {
             throw new InvalidArgumentException('An expired handoff requires an expiry observation time.');
+        }
+        if (($status === HandoffStatus::Expired) !== ($expiredAt !== null)) {
+            throw new InvalidArgumentException('Only an expired handoff may have an expiry observation time.');
+        }
+        if ($expiredAt !== null && ($expiresAt === null || $expiredAt < $expiresAt)) {
+            throw new InvalidArgumentException('Expiry can be recorded only at or after a configured deadline.');
         }
     }
 
@@ -69,6 +87,9 @@ final readonly class ResumableHandoff implements JsonSerializable
     /** @return list<HandoffTransition> */
     public function allowedTransitions(DateTimeImmutable $at): array
     {
+        if ($at < $this->requestedAt) {
+            return [];
+        }
         if ($this->status === HandoffStatus::Cancelled || $this->status === HandoffStatus::Expired) {
             return [];
         }
@@ -84,12 +105,17 @@ final readonly class ResumableHandoff implements JsonSerializable
 
     public function isAwaitingResponseAt(DateTimeImmutable $at): bool
     {
-        return $this->status === HandoffStatus::AwaitingResponse && ! $this->deadlineReached($at);
+        return $at >= $this->requestedAt
+            && $this->status === HandoffStatus::AwaitingResponse
+            && ! $this->deadlineReached($at);
     }
 
     public function isResumableAt(DateTimeImmutable $at): bool
     {
-        return $this->status === HandoffStatus::Answered && ! $this->deadlineReached($at);
+        return $this->answeredAt !== null
+            && $at >= $this->answeredAt
+            && $this->status === HandoffStatus::Answered
+            && ! $this->deadlineReached($at);
     }
 
     public function answer(CrossPackageReference $response, DateTimeImmutable $answeredAt): self
