@@ -6,6 +6,12 @@ Elwin owns the provider-neutral boundary between exact human input and evolving 
 
 `Conversation` carries immutable input/intent references, provider-source message observations, question/response/intervention events, and portable decision/plan handoffs. It can pause or finish without creating a Run; provider session identifiers remain source observations rather than canonical identity.
 
+## Clarification questions
+
+`ClarificationQuestion` records both why input is needed and the exact `AllowedResponseShape` that can unblock the question. The provider-neutral shapes cover single and multiple selection, bounded text, confirmation, decision requests, and attachment/evidence requests. Responses use portable evidence references and are checked against the question identity and constraints.
+
+Every shape also accepts an explicit refusal or cancellation. These are safe terminal responses to the question, not fabricated answers. Consumers such as Logres may use the result to drive paused-work transitions; Burdgeon or another client chooses how to render and collect it. Elwin contains no widget, layout, or provider SDK contract.
+
 ## Human input acceptance
 
 `UserInputDraft` is mutable editor state and is not historical evidence. `SendPrimaryAskInput` is the explicit acceptance boundary: it stores one immutable `PrimaryAskUserInput` through the provider-neutral `UserInputStore` contract and deduplicates delivery by channel, submitting actor, and client submission ID. A Primary Ask requires a nonempty human-authored string and may include ordered attachment parts. Semantic author and submitting actor are separate; delegated human authorship requires an attestation reference.
